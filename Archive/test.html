@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Circles</title>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+</head>
+<body>
+    <div id="chart"></div>
+
+    <script>
+        const margin = { top: 20, right: 30, bottom: 30, left: 40 },
+              width = 800 - margin.left - margin.right,
+              height = 400 - margin.top - margin.bottom;
+
+        // Create an SVG container
+        const svg = d3.select("#chart")
+            .append("svg")
+            .attr("width", width + margin.left + margin.right)
+            .attr("height", height + margin.top + margin.bottom)
+            .append("g")
+            .attr("transform", `translate(${margin.left},${margin.top})`);
+
+        // Hardcoded test data for circles
+        const testData = [
+            { x: 100, y: 100, radius: 10, color: "steelblue" },
+            { x: 200, y: 150, radius: 15, color: "tomato" },
+            { x: 300, y: 200, radius: 20, color: "purple" },
+            { x: 400, y: 250, radius: 25, color: "green" }
+        ];
+
+        // Draw circles
+        svg.selectAll("circle")
+            .data(testData)
+            .enter()
+            .append("circle")
+            .attr("cx", d => d.x)
+            .attr("cy", d => d.y)
+            .attr("r", d => d.radius)
+            .attr("fill", d => d.color);
+
+        // Add basic x-axis and y-axis for reference
+        const x = d3.scaleLinear().domain([0, 500]).range([0, width]);
+        const y = d3.scaleLinear().domain([0, 300]).range([height, 0]);
+
+        svg.append("g")
+            .attr("transform", `translate(0,${height})`)
+            .call(d3.axisBottom(x));
+
+        svg.append("g")
+            .call(d3.axisLeft(y));
+    </script>
+</body>
+</html>
