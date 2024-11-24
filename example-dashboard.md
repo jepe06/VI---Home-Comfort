@@ -55,8 +55,7 @@ const selectedYear = view(Inputs.select(
   [
     { label: "All", value: "" },
     { label: "2019", value: 2019 },
-    { label: "2020", value: 2020 },
-    { label: "2021", value: 2021 }
+    { label: "2020", value: 2020 }
   ],
   {
     label: "Select Year:",
@@ -78,14 +77,124 @@ const color = Plot.scale({
 });
 ```
 ```js
-const avgTemp = d3.mean(selectedDataset.value, (d) => +d.temperature).toFixed(1);
+//Dados filtrados para valores realistas
+const anoSelecionado = selectedYear.label
+const filteredDataset = selectedDataset.value.filter((d) => +d.temperature > 10 && +d.humidity > 30 && (selectedYear.value == "" || +d.year == selectedYear.value));
+```
+
+
+```js
+
+if (filteredDataset.lenght!== 0){
+const avgTemp = d3.mean(filteredDataset, (d) => +d.temperature).toFixed(1);
 
 // Calculate average humidity using d3.mean
-const avgHumidity = d3.mean(selectedDataset.value, (d) => +d.humidity).toFixed(1);
+const avgHumidity = d3.mean(filteredDataset, (d) => +d.humidity).toFixed(1);
+
+ 
 
 document.getElementById("avgTemp").textContent = `${avgTemp}°C`;
 document.getElementById("avgHumidity").textContent = `${avgHumidity}%`;
+}
+else{
+   const avgTemp =null
+  const avgHumidity =null
+  document.getElementById("avgTemp").textContent = `N/A`;
+document.getElementById("avgHumidity").textContent = `N/A`;
+}
 ```
+
+```js
+filteredDataset.forEach((d) => {
+  d.date = `${d.year}-${String(d.month).padStart(2, "0")}-${String(
+    d.day
+  ).padStart(2, "0")}`;
+})
+```
+// médias de cada dia
+
+```js
+
+function calculateDailyAverages(data) {
+  const groupedData = d3.group(data, (d) => d.date);
+
+  return Array.from(groupedData, ([date, values]) => ({
+    date,
+    avgTemperature: d3.mean(values, (d) => +d.temperature),
+    avgHumidity: d3.mean(values, (d) => +d.humidity)
+  }));
+}
+
+const dailyAverages = calculateDailyAverages(filteredDataset)
+
+```
+
+```js
+//calcular médias de cada mês
+function calculateMonthlyAverages(data) {
+  // Group by year and month (e.g., "2024-11" for November 2024)
+  const groupedData = d3.group(data, (d) => `${d.year}-${String(d.month).padStart(2, "0")}`);
+
+  return Array.from(groupedData, ([month, values]) => ({
+    month,
+    avgTemperature: d3.mean(values, (d) => +d.temperature),
+    avgHumidity: d3.mean(values, (d) => +d.humidity)
+  }));
+}
+
+const montlyAverages = calculateMonthlyAverages(filteredDataset)
+```
+
+
+<div class="grid grid-cols-1">
+  <div class="card">
+    ${resize(width => Plot.plot({
+      marks: [
+        Plot.line(montlyAverages, {
+          x: "date",
+          y: "avgTemperature",
+          stroke: "steelblue"
+        })
+      ],
+      x: {
+        label: "Day of the Month",
+        tickFormat: d3.utcFormat("%b") // Format the x-axis labels for month and day
+      },
+      y: {
+        label: "Average Temperature (°C)"
+      },
+      width: width, // Dynamic width based on container size
+      height: 400
+    }))}
+
+  </div>
+</div>
+
+```js
+const fileData = selectedDataset.value;
+const filteredData = fileData.filter((d) => {
+  // If both year and month selectors are empty, return the whole dataset
+  if (selectedYear.value === "" && selectedMonth.value === "") {
+    return true; // Include all records
+  }
+
+  // If only year is selected, filter by year only
+  if (selectedYear.value !== "" && selectedMonth.value === "") {
+    return d.year == selectedYear.value;
+  }
+
+  // If only month is selected, filter by month across all years
+  if (selectedYear.value === "" && selectedMonth.value !== "") {
+    return d.month == selectedMonth.value;
+  }
+
+  // If both year and month are selected, filter by both
+  return d.year == selectedYear.value && d.month == selectedMonth.value;
+})
+
+```
+
+
 <!-- Cards with big numbers -->
 
 <div class="grid grid-cols-4">
@@ -99,8 +208,29 @@ document.getElementById("avgHumidity").textContent = `${avgHumidity}%`;
   </div>
 </div>
 
-
+```js
+Inputs.table(avgTemp)
+Plot.plot({
+  marks: [
+    Plot.line(avgTemp, {
+      x: "date",
+      y: "Temperature",
+      stroke: "steelblue"
+    })
+  ],
+  x: {
+    label: "Day of the Month",
+    tickFormat: d3.utcFormat("%b-%d") // Format the x-axis labels for month and day
+  },
+  y: {
+    label: "Average Temperature (°C)"
+  },
+  width: 800,
+  height: 400
+})
 <!-- Plot of launch history -->
+```
+
 
 ```js
 function launchTimeline(data, {width} = {}) {
