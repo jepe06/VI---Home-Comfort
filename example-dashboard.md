@@ -1,6 +1,6 @@
 ---
 theme: dashboard
-title: Example dashboard
+title: Home comfort
 toc: false
 ---
 
@@ -25,10 +25,6 @@ const A10 =await  FileAttachment("data/10A-sgh0201f6cb55ed@1.csv").csv({ typed: 
 const launches= FileAttachment("data/launches.csv").csv({ typed: true }); 
 ```
 
-```js
-Inputs.table(A3)
-
-```
 
 ```js
 
@@ -49,7 +45,7 @@ const selectedDataset = view(
   )
 );
 ```
-<b>Casa selecionada é ${selectedDataset.label} <b>
+<b> A casa selecionada é ${selectedDataset.label} <b>
 
 ```js
 const selectedYear = view(Inputs.select(
@@ -65,7 +61,7 @@ const selectedYear = view(Inputs.select(
   }
 ))
 ```
-<b>Ano selecionado é ${selectedYear.label} <b>
+
 
 ```js
 const selectedEstacao = view(Inputs.select(
@@ -81,7 +77,7 @@ const selectedEstacao = view(Inputs.select(
   }
 ))
 ```
-Estacao selecionada é ${selectedEstacao.label} 
+
 
 ```js
 const color = Plot.scale({
@@ -102,6 +98,43 @@ const  estacaoMeses = {
 ```
 
 ```js
+
+let temperatureR, humidityR,referenceValueTemp,referenceValueHum;
+
+if (estacaoText === "Verao") {
+  temperatureR = [21, 25];
+  humidityR = [45, 55];
+  referenceValueTemp = 24;
+   referenceValueHum = 50;
+} else if (estacaoText === "Inverno") {
+  temperatureR = [19, 21]; //zonas de conforto
+  humidityR = [50, 60];
+  referenceValueTemp = 20;
+  referenceValueHum = 55;
+} else {
+  temperatureR = [19, 25];
+  humidityR = [45, 60];
+  referenceValueTemp = 21;
+  referenceValueHum = 50;
+}
+
+
+
+document.getElementById('referenceValueTemp').textContent = `${referenceValueTemp}°C`;
+document.getElementById('referenceValueHum').textContent = `${referenceValueHum}%`;
+
+```
+<div class="grid grid-cols-2">
+  <div class="card">
+    <h2>Temperatura e Humidade de Referência</h2>
+    <span class="big" id="referenceValueTemp"></span>
+    <span class="big" id="referenceValueHum" style="margin-left: 30px;"></span>
+    </div>
+</div>
+
+
+
+```js
 // Filter the dataset based on the selected season
 const filteredDatasetE2 = selectedDataset.value.filter((d) => {
 
@@ -117,7 +150,7 @@ const filteredDatasetE2 = selectedDataset.value.filter((d) => {
     }
   }
 
-  // Check temperature and humidity thresholds
+
   return +d.temperature > 10 && +d.humidity > 30;
 });
 
@@ -125,7 +158,7 @@ const filteredDatasetE2 = selectedDataset.value.filter((d) => {
 //esta tá a ser usado nos graficos
 const filteredDataset = selectedDataset.value.filter((d) => +d.temperature > 10 && +d.humidity > 30 && (d.year== "" ||+d.year == selectedYear.value));
 ```
-Valor da condicao ${filteredDataset[1]} 
+
 
 ```js
 //DASHBOARD STUFF
@@ -139,17 +172,27 @@ const avgTemp = d3.mean(filteredDatasetE2, (d) => +d.temperature)|| 0;;
 // Calculate average humidity using d3.mean
 const avgHumidity = d3.mean(filteredDatasetE2, (d) => +d.humidity)|| 0;;
 
- 
 
  document.getElementById("avgTemp").textContent = avgTemp > 0 ? avgTemp.toFixed(1) + "°C" : "N/A";
-  document.getElementById("avgHumidity").textContent = avgHumidity > 0 ? avgHumidity.toFixed(1) + "%" : "N/A";
-  
+document.getElementById("avgHumidity").textContent = avgHumidity > 0 ? avgHumidity.toFixed(1) + "%" : "N/A";
 
+const avgTempElement = document.getElementById("avgTemp");
+
+
+if (avgTemp< 2){
+  avgTempElement.style.color = 'blue';
+}
+else{
+avgTempElement.style.color = 'black';
+}
   // Update selected season
-  const estacaoText = selectedEstacao.value
+const estacaoText = selectedEstacao.value
     ? selectedEstacao.label // Assuming `selectedEstacao` contains a label
     : "Todas as estações";
-  document.getElementById("selectedSeason").textContent = estacaoText;
+     document.getElementById("selectedSeason").textContent = estacaoText;
+
+
+
 
 
 ```
@@ -181,22 +224,159 @@ filteredDataset.forEach((d) => {
 
 ```
 
+```js
+//calcular médias de cada mês
+function calculateMonthlyAverages(data,referenceValueTemp2 = referenceValueTemp, referenceValueHum2 = referenceValueHum) {
+
+  const groupedData = d3.group(data, (d) => `${d.year}-${String(d.month).padStart(2, "0")}`);
+
+  return Array.from(groupedData, ([yearmonth, values]) => {
+
+    const avgTemperature3 = d3.mean(values, (d) => +d.temperature) || 0; 
+    const avgHumidity3 = d3.mean(values, (d) => +d.humidity) || 0;
+    const tempVariation = avgTemperature3 - referenceValueTemp2;
+    const humidityVariation = avgHumidity3 - referenceValueHum2;
+     return {
+      month: new Date(`${yearmonth}-01`),
+      avgTemperature3, 
+      avgHumidity3, 
+      tempVariation, 
+      humidityVariation 
+ 
+  }});
+}
+```
+
+```js
+const montlyAverages = calculateMonthlyAverages(filteredDataset)
+```
+
+```js
+//variacaoes
+const avgVarT = d3.mean(montlyAverages, (d) => +d.tempVariation)
+const avgVarH = d3.mean(montlyAverages, (d) => +d.humidityVariation)
+
+```
+Variação média de temperatura é ${avgVarT.toFixed(1)}°C e de Humidade é ${avgVarH.toFixed(1)}%
+
+```js
+function todosMeses(montlyAverages, { width } = {}) {
+
+  return Plot.plot({
+    title: "Temperatura e Humidade Média",
+    marks: [
+      // Linha para temperatura média
+      Plot.line(montlyAverages, {
+        x: "month",
+        y: "avgTemperature3",
+        stroke: "steelblue",
+        strokeWidth: 2,
+        title: (d) => `Temperature: ${d.avgTemperature3.toFixed(1)}°C`
+      }),
+      // Linha para humidade média
+      Plot.line(montlyAverages, {
+        x: "month",
+        y: "avgHumidity3",
+        stroke: "green",
+        strokeWidth: 2,
+        title: (d) => `Humidity: ${d.avgHumidity3.toFixed(1)}%`
+      }),
+      Plot.text(montlyAverages, {
+        x: "month",
+        y: (d) => d.avgTemperature3 + (d.tempVariation > 0 ? 1.5 : -1.5),
+        text: (d) => `${d.tempVariation > 0 ? "+" : ""}${d.tempVariation.toFixed(1)}°C`, 
+        fontSize: 12,
+        fill: "steelblue",
+        dx: 5, 
+      }),
+
+      Plot.text(montlyAverages, {
+        x: "month",
+        y: (d) => d.avgHumidity3 + (d.humidityVariation > 0 ? 2 : -2), 
+        text: (d) => `${d.humidityVariation > 0 ? "+" : ""}${d.humidityVariation.toFixed(1)}%`, 
+        fontSize: 12,
+        fill: "green",
+        dx: 5, 
+      })
+    
+    ],
+    x: {
+      label: "Mês",
+      tickFormat: d3.utcFormat("%b %Y") 
+    },
+    y: {
+      label: "Value",
+      grid: true, 
+      tickCount: 20
+    },
+    width: width, 
+    height: 700,
+   color: {
+      domain: ["Temperatura Média", "Humidade Média"], 
+      range: ["steelblue", "green"], 
+      legend: true,
+    },
+  });
+}
+
+
+```
+
+<div class="grid grid-cols-1">
+  <div class="card">
+    ${resize((width) => todosMeses (montlyAverages, {width}))}
+
+  </div>
+</div>
+
 // médias de cada dia
 
 ```js
 
 function calculateDailyAverages(data) {
-  // Group the data by the full date (year-month-day)
+ 
   const groupedData = d3.group(data, (d) => d.date);
 
-  // Return an array with the date and the average temperature and humidity for each day
+  
   return Array.from(groupedData, ([date, values]) => ({
-    date, // Full date in 'YYYY-MM-DD' format
-    avgTemperature2: d3.mean(values, (d) => +d.temperature), // Average temperature
-    avgHumidity2: d3.mean(values, (d) => +d.humidity) // Average humidity
+    date, 
+    avgTemperature2: d3.mean(values, (d) => +d.temperature),
+    avgHumidity2: d3.mean(values, (d) => +d.humidity),
+
   }));
 }
+
+function calculateDailyAverages2(data, referenceValueTemp2 = referenceValueTemp, referenceValueHum2 = referenceValueHum) {
+
+  const groupedData = d3.group(data, (d) => d.date);
+
+  
+  return Array.from(groupedData, ([date, values]) => {
+
+    const avgTemperature = d3.mean(values, (d) => +d.temperature) || 0; 
+    const avgHumidity = d3.mean(values, (d) => +d.humidity) || 0; 
+
+   
+    const tempVariation = avgTemperature - referenceValueTemp2;
+    const humidityVariation = avgHumidity - referenceValueHum2;
+
+    
+    return {
+      date, 
+      avgTemperature, 
+      avgHumidity, 
+      tempVariation,
+      humidityVariation 
+    };
+  });
+}
+
+const dailyAverages2 = calculateDailyAverages2(filteredDataset)
+
+
+
 const dailyAverages = calculateDailyAverages(filteredDataset)
+
 ```
 ```js
 
@@ -223,21 +403,89 @@ function todosDias(dailyAverages , {width} = {}) {
     ],
     x: {
       label: "Dia",
-      //tickFormat: d3.utcFormat("%b %Y") // Format: "Jan 2021"
+     
     },
     y: {
       label: "Value",
-      grid: true // Add gridlines for better readability
+      grid: true 
     },
-    width: width, // Dynamic width based on container size
+    width: width, 
     height: 500,
     color: {
-      legend: true, // Add a legend for better visualization
+      legend: true, 
     }
   });
 }
 
+
+
+function todosDias2(dailyAverages2, {width} = {}) {
+  return Plot.plot({
+    title: "Temperatura e Humidade Média",
+    marks: [
+    
+      Plot.line(dailyAverages2, {
+        x: "date",
+        y: "avgTemperature",
+        stroke: "steelblue",
+        strokeWidth: 2,
+        title: (d) => `Temperature: ${d.avgTemperature.toFixed(1)}°C`,
+      }),
+  
+      Plot.line(dailyAverages2, {
+        x: "date",
+        y: "avgHumidity",
+        stroke: "green",
+        strokeWidth: 2,
+        title: (d) => `Humidity: ${d.avgHumidity.toFixed(1)}%`,
+      }),
+     
+      Plot.text(dailyAverages2, {
+        x: "date",
+        y: (d) => d.avgTemperature + (d.tempVariation > 0 ? 1.5 : -1.5),
+        text: (d) => `${d.tempVariation > 0 ? "+" : ""}${d.tempVariation.toFixed(1)}°C`,
+        fontSize: 12,
+        fill: "steelblue",
+        dx: 5,
+      }),
+   
+      Plot.text(dailyAverages2, {
+        x: "date",
+        y: (d) => d.avgHumidity + (d.humidityVariation > 0 ? 2 : -2), 
+        text: (d) => `${d.humidityVariation > 0 ? "+" : ""}${d.humidityVariation.toFixed(1)}%`, 
+        fontSize: 12,
+        fill: "green",
+        dx: 5, 
+      })
+    ],
+    x: {
+      label: "Dia",
+     
+    },
+    y: {
+      label: "Value",
+      grid: true, 
+    },
+    width: width, 
+    height: 500,
+    color: {
+      legend: true, 
+    }
+  });
+}
+
+
+
+
 ```
+<div class="grid grid-cols-1">
+  <div class="card">
+    ${resize((width) => todosDias2 (dailyAverages2, {width}))}
+
+  </div>
+</div>
+
+
 
 <div class="grid grid-cols-1">
   <div class="card">
@@ -246,89 +494,38 @@ function todosDias(dailyAverages , {width} = {}) {
   </div>
 </div>
 
-```js
-//calcular médias de cada mês
-function calculateMonthlyAverages(data) {
-
-  const groupedData = d3.group(data, (d) => `${d.year}-${String(d.month).padStart(2, "0")}`);
-
-  return Array.from(groupedData, ([yearmonth, values]) => ({
-    month: new Date(`${yearmonth}-01`),
-    avgTemperature3: d3.mean(values, (d) => +d.temperature),
-    avgHumidity3: d3.mean(values, (d) => +d.humidity)
-  }));
-}
-```
 
 ```js
-const montlyAverages = calculateMonthlyAverages(filteredDataset)
-
-```
-```js
-function todosMeses(montlyAverages, {width} = {}) {
-  return Plot.plot({
-    title: "Temperatura e Humidade Média",
-    marks: [
-      // Line for average temperature
-      Plot.line(montlyAverages, {
-        x: "month",
-        y: "avgTemperature3",
-        stroke: "steelblue",
-        strokeWidth: 2,
-        title: (d) => `Temperature: ${d.avgTemperature3.toFixed(1)}°C`
-      }),
-      // Line for average humidity
-      Plot.line(montlyAverages, {
-        x: "month",
-        y: "avgHumidity3",
-        stroke: "green",
-        strokeWidth: 2,
-        title: (d) => `Humidity: ${d.avgHumidity3.toFixed(1)}%`
-      }),
-    ],
-    x: {
-      label: "Mês",
-      tickFormat: d3.utcFormat("%b %Y") // Format: "Jan 2021"
-    },
-    y: {
-      label: "Value",
-      grid: true // Add gridlines for better readability
-    },
-    width: width, // Dynamic width based on container size
-    height: 500,
-    color: {
-      legend: true, // Add a legend for better visualization
-    }
-  });
-}
+//tentativas de grafiocs interativos com o d3
+function todosDiass(dailyAverages) {
 
 
-```
-
-<div class="grid grid-cols-1">
-  <div class="card">
-    ${resize((width) => todosMeses (montlyAverages, {width}))}
-
-  </div>
-</div>
-
-```js
-
-function todosDiass(dailyAverages, { width }) {
-  // Set the dimensions and margins of the graph
   const margin = { top: 20, right: 30, bottom: 110, left: 40 },
         margin2 = { top: 430, right: 30, bottom: 30, left: 40 },
+        width = 800 - margin.left - margin.right, 
         height = 500 - margin.top - margin.bottom,
         height2 = 500 - margin2.top - margin2.bottom;
 
-  // Create an SVG element
+  // Create scales for focus and context
+  const x = d3.scaleTime().range([0, width]);
+  const x2 = d3.scaleTime().range([0, width]);
+  const y = d3.scaleLinear().range([height, 0]);  // Left y-axis for temperature
+  const y2 = d3.scaleLinear().range([height2, 0]);  // Right y-axis for humidity
+
+  // Create axes
+  const xAxis = d3.axisBottom(x);
+  const xAxis2 = d3.axisBottom(x2);
+  const yAxis = d3.axisLeft(y);
+  const yAxis2 = d3.axisRight(y2);
+
+
   const svg = d3
     .create("svg")
     .attr("width", width + margin.left + margin.right)
     .attr("height", height + margin.top + margin.bottom)
     .style("background", "#ffffff");
 
-  // Add clip path to prevent drawing outside the chart area
+
   svg
     .append("defs")
     .append("clipPath")
@@ -337,39 +534,247 @@ function todosDiass(dailyAverages, { width }) {
     .attr("width", width)
     .attr("height", height);
 
-  // Add focus area for main chart
   const focus = svg
     .append("g")
     .attr("class", "focus")
     .attr("transform", `translate(${margin.left},${margin.top})`);
 
-  // Add context area for zoom and brush
+
   const context = svg
     .append("g")
     .attr("class", "context")
     .attr("transform", `translate(${margin2.left},${margin2.top})`);
 
-  // Create scales for focus and context
+
+  const data = dailyAverages;
+
+  // Update domains based on avgTemperature3 and avgHumidity3
+  x.domain(d3.extent(data, (d) => d.month));
+  y.domain([0, d3.max(data, (d) => d.avgTemperature3)]); // Temperature on left y-axis
+  y2.domain([0, d3.max(data, (d) => d.avgHumidity3)]); // Humidity on right y-axis
+  x2.domain(x.domain());
+
+
+  const brush = d3
+    .brushX()
+    .extent([[0, 0], [width, height2]])
+    .on("brush end", brushed);
+
+  const zoom = d3
+    .zoom()
+    .scaleExtent([1, Infinity])
+    .translateExtent([[0, 0], [width, height]])
+    .extent([[0, 0], [width, height]])
+    .on("zoom", zoomed);
+
+  context
+    .append("path")
+    .datum(data)
+    .attr("class", "line")
+    .attr("fill", "none")
+    .attr("stroke", "steelblue")
+    .attr("stroke-width", 1.0)
+    .attr(
+      "d",
+      d3
+        .line()
+        .defined((d) => d.avgTemperature3 != null && !isNaN(d.avgTemperature3))
+        .x((d) => x2(d.month))
+        .y((d) => y2(d.avgTemperature3)) // Humidity line in context
+    );
+
+  context
+    .append("path")
+    .datum(data)
+    .attr("class", "line")
+    .attr("fill", "none")
+    .attr("stroke", "green")
+    .attr("stroke-width", 1.0)
+    .attr(
+      "d",
+      d3
+        .line()
+        .defined((d) => d.avgHumidity3 != null && !isNaN(d.avgHumidity3))
+        .x((d) => x2(d.month))
+        .y((d) => y2(d.avgHumidity3)) // Humidity line in context
+    );
+
+ 
+  context.append("g").attr("class", "brush").call(brush);
+
+  svg
+    .append("rect")
+    .attr("class", "zoom")
+    .attr("width", width)
+    .attr("height", height)
+    .attr("transform", `translate(${margin.left},${margin.top})`)
+    .style("fill", "none")
+    .style("pointer-events", "all") 
+    .call(zoom);
+
+  const focusLineTemp = focus
+    .append("path")
+    .datum(data)
+    .attr("class", "line")
+    .attr("fill", "none")
+    .attr("stroke", "steelblue")
+    .attr("stroke-width", 1.5)
+    .attr(
+      "d",
+      d3
+        .line()
+        .defined((d) => d.avgTemperature3)
+        .x((d) => x(d.month))
+        .y((d) => y(d.avgTemperature3)) // Temperature line in focus
+    );
+
+  const focusLineHum = focus
+    .append("path")
+    .datum(data)
+    .attr("class", "line")
+    .attr("fill", "none")
+    .attr("stroke", "green")
+    .attr("stroke-width", 1.5)
+    .attr(
+      "d",
+      d3
+        .line()
+        .defined((d) => d.avgHumidity3)
+        .x((d) => x(d.month))
+        .y((d) => y2(d.avgHumidity3)) // Humidity line in focus
+    );
+
+
+  focus
+    .append("g")
+    .attr("class", "axis axis--x")
+    .attr("transform", `translate(0,${height})`)
+    .call(xAxis);
+
+  focus
+    .append("g")
+    .attr("class", "axis axis--y")
+    .call(yAxis); // Left y-axis for temperature
+
+  focus
+    .append("g")
+    .attr("class", "axis axis--y2")
+    .attr("transform", `translate(${width}, 0)`)
+    .call(yAxis2); // Right y-axis for humidity
+
+  context
+    .append("g")
+    .attr("class", "axis axis--x")
+    .attr("transform", `translate(0,${height2})`)
+    .call(xAxis2);
+
+
+  function zoomed(event) {
+    const transform = event.transform;
+    const newX = transform.rescaleX(x2);
+    x.domain(newX.domain());
+    updateFocus();
+    context
+      .select(".brush")
+      .call(brush.move, x.range().map(transform.invertX, transform));
+  }
+
+
+  function updateFocus() {
+    focusLineTemp.attr(
+      "d",
+      d3
+        .line()
+        .x((d) => x(d.month))
+        .y((d) => y(d.avgTemperature3))
+    );
+
+    focusLineHum.attr(
+      "d",
+      d3
+        .line()
+        .x((d) => x(d.month))
+        .y((d) => y2(d.avgHumidity3))
+    );
+
+    focus.select(".axis--x").call(xAxis);
+    focus.select(".axis--y").call(yAxis);
+    focus.select(".axis--y2").call(yAxis2);
+  }
+
+
+  function brushed(event) {
+    if (event.selection) {
+      const [x0, x1] = event.selection.map(x2.invert);
+      x.domain([x0, x1]);
+      updateFocus();
+    }
+  }
+
+
+  return svg.node();
+}
+
+```
+
+
+```js
+
+//mais uma tentativa 
+
+function todosDiasss(dailyAverages, { width }) {
+
+  const margin = { top: 20, right: 30, bottom: 110, left: 40 },
+        margin2 = { top: 430, right: 30, bottom: 30, left: 40 },
+        height = 500 - margin.top - margin.bottom,
+        height2 = 500 - margin2.top - margin2.bottom;
+
+
+  const svg = d3
+    .create("svg")
+    .attr("width", width + margin.left + margin.right)
+    .attr("height", height + margin.top + margin.bottom)
+    .style("background", "#ffffff");
+
+  svg
+    .append("defs")
+    .append("clipPath")
+    .attr("id", "clip")
+    .append("rect")
+    .attr("width", width)
+    .attr("height", height);
+
+
+  const focus = svg
+    .append("g")
+    .attr("class", "focus")
+    .attr("transform", translate(${margin.left},${margin.top}));
+
+ 
+  const context = svg
+    .append("g")
+    .attr("class", "context")
+    .attr("transform", translate(${margin2.left},${margin2.top}));
+
   const x = d3.scaleTime().range([0, width]);
   const x2 = d3.scaleTime().range([0, width]);
   const y = d3.scaleLinear().range([height, 0]);
   const y2 = d3.scaleLinear().range([height2, 0]);
 
-  // Create axes
+
   const xAxis = d3.axisBottom(x);
   const xAxis2 = d3.axisBottom(x2);
   const yAxis = d3.axisLeft(y);
 
-  // Use avgTemperaturePerDay as the data source
-  const data = dailyAverages;
+  const data = montlyAverages;
 
-  // Update domains based on avgTemperaturePerDay
-  x.domain(d3.extent(data, (d) => d.date));
-  y.domain([0, d3.max(data, (d) => d.avgTemperature2)]);
+
+  x.domain(d3.extent(data, (d) => d.month));
+  y.domain([0, d3.max(data, (d) => d.avgTemperature3)]);
   x2.domain(x.domain());
   y2.domain(y.domain());
 
-  // Create brush and zoom behaviors
+
   const brush = d3
     .brushX()
     .extent([
@@ -391,7 +796,7 @@ function todosDiass(dailyAverages, { width }) {
     ])
     .on("zoom", zoomed);
 
-  // Append context path (overview line chart)
+
   context
     .append("path")
     .datum(data)
@@ -403,12 +808,12 @@ function todosDiass(dailyAverages, { width }) {
       "d",
       d3
         .line()
-        .defined((d) => d.avgTemperature2 != null && !isNaN(d.avgTemperature2)) // Ignore missing data points
-        .x((d) => x2(d.date))
-        .y((d) => y2(d.avgTemperature2))
+        .defined((d) => d.avgTemperature3 != null && !isNaN(d.avgTemperature3)) // Ignore missing data points
+        .x((d) => x2(d.month))
+        .y((d) => y2(d.avgTemperature3))
     );
 
-  // Append rectangles for brush and zoom behavior
+
   context.append("g").attr("class", "brush").call(brush);
 
   svg
@@ -416,12 +821,12 @@ function todosDiass(dailyAverages, { width }) {
     .attr("class", "zoom")
     .attr("width", width)
     .attr("height", height)
-    .attr("transform", `translate(${margin.left},${margin.top})`)
+    .attr("transform", translate(${margin.left},${margin.top}))
     .style("fill", "none")
-    .style("pointer-events", "all") // Enable zoom interaction
+    .style("pointer-events", "all") 
     .call(zoom);
 
-  // Append focus path (main line chart)
+ 
   const focusLine = focus
     .append("path")
     .datum(data)
@@ -433,16 +838,16 @@ function todosDiass(dailyAverages, { width }) {
       "d",
       d3
         .line()
-        .defined((d) => d.avgTemperature2) //!= null && !isNaN(d.avgTemperature2)) // Ignore missing data points
-        .x((d) => x(d.date))
-        .y((d) => y(d.avgTemperature2))
+        .defined((d) => d.avgTemperature3) 
+        .x((d) => x(d.month))
+        .y((d) => y(d.avgTemperature3))
     );
 
-  // Add axes to focus and context areas
+  
   focus
     .append("g")
     .attr("class", "axis axis--x")
-    .attr("transform", `translate(0,${height})`)
+    .attr("transform", translate(0,${height}))
     .call(xAxis);
 
   focus.append("g").attr("class", "axis axis--y").call(yAxis);
@@ -452,32 +857,29 @@ function todosDiass(dailyAverages, { width }) {
     .attr("class", "y-threshold")
     .attr("x1", 0)
     .attr("x2", width)
-    //.attr("y1", idealV) //
-   // .attr("y2", idealV) //
-    .attr("stroke", "red") // Line color
-    .attr("stroke-width", 1) // Line thickness
-    .attr("stroke-dasharray", "4 2"); // Dashed line
+
+    .attr("stroke", "red") 
+    .attr("stroke-width", 1) 
+    .attr("stroke-dasharray", "4 2"); 
 
   context
     .append("g")
     .attr("class", "axis axis--x")
-    .attr("transform", `translate(0,${height2})`)
+    .attr("transform", translate(0,${height2}))
     .call(xAxis2);
 
-  // Function to update focus area (line and axes)
   function updateFocus() {
     focusLine.attr(
       "d",
       d3
         .line()
-        .x((d) => x(d.date))
-        .y((d) => y(d.avgTemperature2))
+        .x((d) => x(d.month))
+        .y((d) => y(d.avgTemperature3))
     );
 
     focus.select(".axis--x").call(xAxis);
   }
 
-  // Function for brushing interaction
   function brushed(event) {
     if (event.selection) {
       const [x0, x1] = event.selection.map(x2.invert);
@@ -486,7 +888,7 @@ function todosDiass(dailyAverages, { width }) {
     }
   }
 
-  // Function for zooming interaction
+
   function zoomed(event) {
     const transform = event.transform;
     const newX = transform.rescaleX(x2);
@@ -497,77 +899,121 @@ function todosDiass(dailyAverages, { width }) {
       .call(brush.move, x.range().map(transform.invertX, transform));
   }
 
-  // Return the SVG node (this is what will be inserted into the DOM)
+
   return svg.node();
 }
-
-
 ```
 
-<div class="grid grid-cols-1">
-  <div class="card">
-      ${resize((width) => todosDiass (dailyAverages, {width}))}
-
-  </div>
-</div>
-
-
-
-
-
-
-
-<!-- Plot of launch history -->
-```
 
 
 ```js
-function launchTimeline(data, {width} = {}) {
-  return Plot.plot({
-    title: "Launches over the years",
-    width,
-    height: 300,
-    y: {grid: true, label: "Launches"},
-    color: {...color, legend: true},
-    marks: [
-      Plot.rectY(data, Plot.binX({y: "count"}, {x: "date", fill: "state", interval: "year", tip: true})),
-      Plot.ruleY([0])
-    ]
-  });
+
+//outra tentativa 
+
+function createChart() {
+
+  
+  
+
+
+  const marginTop = 20, marginRight = 20, marginBottom = 30, marginLeft = 30;
+  const width = 928, height = 500;
+
+
+  const x = d3.scaleUtc()
+    .domain(d3.extent(dailyAverages, (d) => d.date))
+    .range([marginLeft, width - marginRight]);
+
+  const y = d3.scaleLinear()
+    .domain([0, d3.max(dailyAverages, (d) => Math.max(d.avgTemperature2, d.avgHumidity2))])
+    .nice()
+    .range([height - marginBottom, marginTop]);
+
+
+  const xAxis = (g, x) => g
+    .call(d3.axisBottom(x).ticks(width / 80).tickSizeOuter(0));
+
+
+  const area = (data, x) => d3.area()
+    .curve(d3.curveStepAfter)
+    .x((d) => x(d.date))
+    .y0(y(0))
+    .y1((d) => y(d.avgTemperature2))  
+    (data);
+
+
+  const zoom = d3.zoom()
+    .scaleExtent([1, 32])
+    .extent([[marginLeft, 0], [width - marginRight, height]])
+    .translateExtent([[marginLeft, -Infinity], [width - marginRight, Infinity]])
+    .on("zoom", zoomed);
+
+
+  const svg = d3.create("svg")
+    .attr("viewBox", [0, 0, width, height])
+    .attr("width", width)
+    .attr("height", height)
+    .attr("style", "max-width: 100%; height: auto;");
+
+  const clip = svg.append("defs")
+    .append("clipPath")
+    .attr("id", "clip")
+    .append("rect")
+    .attr("x", marginLeft)
+    .attr("y", marginTop)
+    .attr("width", width - marginLeft - marginRight)
+    .attr("height", height - marginTop - marginBottom);
+
+
+  const path = svg.append("path")
+    .attr("clip-path", "url(#clip)") 
+    .attr("fill", "steelblue")
+    .attr("d", area(dailyAverages, x));
+
+
+  const gx = svg.append("g")
+    .attr("transform", `translate(0,${height - marginBottom})`)
+    .call(xAxis, x);
+
+
+  svg.append("g")
+    .attr("transform", `translate(${marginLeft},0)`)
+    .call(d3.axisLeft(y).ticks(null, "s"))
+    .call((g) => g.select(".domain").remove())
+    .call((g) => g.select(".tick:last-of-type text").clone()
+      .attr("x", 3)
+      .attr("text-anchor", "start")
+      .attr("font-weight", "bold")
+      .text("Temperature (°C)")); 
+
+
+  function zoomed(event) {
+    const xz = event.transform.rescaleX(x);
+    path.attr("d", area(dailyAverages, xz));
+    gx.call(xAxis, xz);
+  }
+
+
+  svg.call(zoom)
+    .transition()
+    .duration(750)
+    .call(zoom.scaleTo, 4, [x(Date.UTC(2024, 0, 1)), 0]); // Zoom into a specific range (January 2024)
+
+
+  document.body.appendChild(svg.node());
 }
+
 ```
 
-<div class="grid grid-cols-1">
-  <div class="card">
-    ${resize((width) => launchTimeline(launches, {width}))}
-  </div>
-</div>
 
-<!-- Plot of launch vehicles -->
 
-```js
-function vehicleChart(data, {width}) {
-  return Plot.plot({
-    title: "Popular launch vehicles",
-    width,
-    height: 300,
-    marginTop: 0,
-    marginLeft: 50,
-    x: {grid: true, label: "Launches"},
-    y: {label: null},
-    color: {...color, legend: true},
-    marks: [
-      Plot.rectX(data, Plot.groupY({x: "count"}, {y: "family", fill: "state", tip: true, sort: {y: "-x"}})),
-      Plot.ruleX([0])
-    ]
-  });
-}
-```
 
-<div class="grid grid-cols-1">
-  <div class="card">
-    ${resize((width) => vehicleChart(launches, {width}))}
-  </div>
-</div>
 
-Data: Jonathan C. McDowell, [General Catalog of Artificial Space Objects](https://planet4589.org/space/gcat)
+
+
+
+
+
+
+
+
